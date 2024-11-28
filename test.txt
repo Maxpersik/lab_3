@@ -1,0 +1,41 @@
+PIPE
+1
+Main Pipeline
+1000.5
+1400
+0
+
+PIPE
+2
+Secondary Pipeline
+500.0
+1000
+1
+
+PIPE
+3
+City Pipeline
+250.0
+700
+0
+
+CS
+1
+Station Alpha
+10
+8
+85.5
+
+CS
+2
+Station Beta
+15
+10
+90.0
+
+CS
+3
+Station Gamma
+5
+5
+95.0
