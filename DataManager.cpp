@@ -100,6 +100,23 @@ void DataManager::loadFromFile(std::unordered_map<int, Pipe>& pipes, std::unorde
         }
     }
 
-    inFile.close();
-    std::cout << "Данные успешно загружены из файла: " << filename << "\n";
+    int maxPipeId = 0;
+        for (const auto& [id, pipe] : pipes) {
+            if (id > maxPipeId) {
+                maxPipeId = id;
+            }
+        }
+        Pipe::nextId = maxPipeId + 1;
+
+        int maxStationId = 0;
+        for (const auto& [id, station] : stations) {
+            if (id > maxStationId) {
+                maxStationId = id;
+            }
+        }
+        CompressorStation::nextId = maxStationId + 1;
+
+        inFile.close();
+        std::cout << "Данные успешно загружены из файла: " << filename << "\n";
+    
 }

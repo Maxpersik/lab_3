@@ -41,6 +41,8 @@ public:
 
     static void displayPipes(const std::vector<Pipe>& pipes);
     int getDiameter() const { return diameter; }
+    int getLength() const { return length; }
+    bool getStatus() const { return repairStatus; }
 
     
     static void deletePipeMenu();

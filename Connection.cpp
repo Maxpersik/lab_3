@@ -106,7 +106,7 @@ void Connection::addConnection() {
                         break;
                     }
                 }
-                if (!pipeInUse && pipe.getDiameter() == desiredDiameter) {
+                if (!pipeInUse && pipe.getDiameter() == desiredDiameter && !pipe.getStatus()) {
                     pipeId = id;
                     break;
                 }
@@ -206,6 +206,14 @@ void Connection::writeToConsole() const {
     std::cout << "Труба ID: " << pipeId << "\n";
     std::cout << "Станция 1 ID: " << stationId1 << "\n";
     std::cout << "Станция 2 ID: " << stationId2 << "\n\n";
+    auto it = Pipe::pipes.find(pipeId);
+       if (it != Pipe::pipes.end()) {
+           const Pipe& pipe = it->second;
+           std::cout << "Диаметр трубы: " << pipe.getDiameter() << " мм\n";
+           std::cout << "Длина трубы: " << pipe.getLength() << " м\n";
+       } else {
+           std::cout << "Труба с ID " << pipeId << " не найдена.\n";
+       }
 }
 
 void Connection::deleteConnection() {
