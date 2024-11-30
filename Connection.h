@@ -24,6 +24,7 @@ public:
 
     static void deleteConnectionsWithPipe(int pipeId);
     static void deleteConnectionsWithStation(int stationId);
+    static void topologicalSort();
 
     int getId() const { return id; }
     int getPipeId() const { return pipeId; }

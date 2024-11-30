@@ -32,6 +32,7 @@ public:
 
     int getId() const { return id; }
     void setId(int newId) { id = newId; }
+    std::string getName() const { return name; }
 
     static void addStation();
     static void displayAll();
