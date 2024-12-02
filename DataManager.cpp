@@ -4,6 +4,8 @@
 #include "Pipe.h"
 #include "CS.h"
 #include "DataManager.h"
+#include "Connection.h"
+
 
 std::string DataManager::getFullPathFromCurrentDirectory() {
     try {
@@ -23,9 +25,13 @@ std::string DataManager::getFullPathFromCurrentDirectory() {
 }
 
 
-void DataManager::saveToFile(const std::unordered_map<int, Pipe>& pipes, const std::unordered_map<int, CompressorStation>& stations, const std::string& filename) {
+void DataManager::saveToFile(const std::unordered_map<int, Pipe>& pipes,
+                             const std::unordered_map<int, CompressorStation>& stations,
+                             const std::unordered_map<int, Connection>& connections,
+                             const std::string& filename) {
     std::ofstream outFile(filename);
     if (outFile.is_open()) {
+        // Сохранение труб
         for (const auto& [id, pipe] : pipes) {
             if (!pipe.name.empty()) {
                 outFile << "PIPE" << std::endl;
@@ -37,6 +43,7 @@ void DataManager::saveToFile(const std::unordered_map<int, Pipe>& pipes, const s
             }
         }
 
+        // Сохранение станций
         for (const auto& [id, station] : stations) {
             if (!station.name.empty()) {
                 outFile << "CS" << std::endl;
@@ -48,6 +55,15 @@ void DataManager::saveToFile(const std::unordered_map<int, Pipe>& pipes, const s
             }
         }
 
+        // Сохранение соединений
+        for (const auto& [id, connection] : connections) {
+            outFile << "CONNECTION" << std::endl;
+            outFile << connection.getId() << std::endl;
+            outFile << connection.getPipeId() << std::endl;
+            outFile << connection.getStationId1() << std::endl;
+            outFile << connection.getStationId2() << std::endl;
+        }
+
         outFile.close();
         std::cout << "Данные сохранены в файл " << filename << std::endl;
     } else {
@@ -55,7 +71,10 @@ void DataManager::saveToFile(const std::unordered_map<int, Pipe>& pipes, const s
     }
 }
 
-void DataManager::loadFromFile(std::unordered_map<int, Pipe>& pipes, std::unordered_map<int, CompressorStation>& stations, const std::string& filename) {
+void DataManager::loadFromFile(std::unordered_map<int, Pipe>& pipes,
+                               std::unordered_map<int, CompressorStation>& stations,
+                               std::unordered_map<int, Connection>& connections,
+                               const std::string& filename) {
     std::ifstream inFile(filename);
     if (!inFile.is_open()) {
         std::cerr << "Ошибка при открытии файла для чтения: " << filename << "\n";
@@ -64,6 +83,7 @@ void DataManager::loadFromFile(std::unordered_map<int, Pipe>& pipes, std::unorde
 
     pipes.clear();
     stations.clear();
+    connections.clear();
 
     std::string line;
     while (std::getline(inFile, line)) {
@@ -97,26 +117,46 @@ void DataManager::loadFromFile(std::unordered_map<int, Pipe>& pipes, std::unorde
 
             station.id = id;
             stations[id] = station;
+        } else if (line == "CONNECTION") {
+            Connection connection(0, 0, 0, 0); // Временные значения
+            int id, pipeId, stationId1, stationId2;
+
+            inFile >> id;
+            inFile >> pipeId;
+            inFile >> stationId1;
+            inFile >> stationId2;
+            inFile.ignore();
+
+            connection = Connection(id, pipeId, stationId1, stationId2);
+            connections[id] = connection;
         }
     }
 
+    // Обновление идентификаторов
     int maxPipeId = 0;
-        for (const auto& [id, pipe] : pipes) {
-            if (id > maxPipeId) {
-                maxPipeId = id;
-            }
+    for (const auto& [id, pipe] : pipes) {
+        if (id > maxPipeId) {
+            maxPipeId = id;
         }
-        Pipe::nextId = maxPipeId + 1;
+    }
+    Pipe::nextId = maxPipeId + 1;
 
-        int maxStationId = 0;
-        for (const auto& [id, station] : stations) {
-            if (id > maxStationId) {
-                maxStationId = id;
-            }
+    int maxStationId = 0;
+    for (const auto& [id, station] : stations) {
+        if (id > maxStationId) {
+            maxStationId = id;
         }
-        CompressorStation::nextId = maxStationId + 1;
+    }
+    CompressorStation::nextId = maxStationId + 1;
 
-        inFile.close();
-        std::cout << "Данные успешно загружены из файла: " << filename << "\n";
-    
+    int maxConnectionId = 0;
+    for (const auto& [id, connection] : connections) {
+        if (id > maxConnectionId) {
+            maxConnectionId = id;
+        }
+    }
+    Connection::nextId = maxConnectionId + 1;
+
+    inFile.close();
+    std::cout << "Данные успешно загружены из файла: " << filename << "\n";
 }

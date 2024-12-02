@@ -50,12 +50,12 @@ int main() {
             case 5:
                 filename = DataManager::getFullPathFromCurrentDirectory();
                 logger.log("Сохранение данных в файл: " + filename);
-                DataManager::saveToFile(Pipe::pipes, CompressorStation::stations, filename);
+                DataManager::saveToFile(Pipe::pipes, CompressorStation::stations, Connection::connections, filename);
                 break;
             case 6:
                 filename = DataManager::getFullPathFromCurrentDirectory();
                 logger.log("Загрузка данных из файла: " + filename);
-                DataManager::loadFromFile(Pipe::pipes, CompressorStation::stations, filename);
+                DataManager::loadFromFile(Pipe::pipes, CompressorStation::stations, Connection::connections,filename);
                 break;
             case 0:
                 logger.log("Программа завершена.");
