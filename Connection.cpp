@@ -13,13 +13,15 @@ Connection::Connection(int id, int pipeId, int stationId1, int stationId2)
     logger.log("Создан новый объект Connection с ID: " + std::to_string(id));
 }
 
+std::unordered_map<int, std::vector<int>> Connection::adjListOut;
+std::unordered_map<int, std::vector<int>> Connection::adjListIn;
+
 void Connection::addConnection() {
     logger.log("Добавление нового соединения.");
 
     int stationId1 = -1, stationId2 = -1;
     int desiredDiameter = 0;
 
-    // Выбор входной станции
     while (true) {
         std::cout << "Введите ID входной станции для соединения (или 0 для отмены): ";
         std::string input;
@@ -38,11 +40,9 @@ void Connection::addConnection() {
             continue;
         }
 
-        // Первая станция успешно выбрана
         break;
     }
 
-    // Выбор выходной станции
     while (true) {
         std::cout << "Введите ID выходной станции для соединения (или 0 для отмены): ";
         std::string input;
@@ -67,12 +67,10 @@ void Connection::addConnection() {
             continue;
         }
 
-        // Вторая станция успешно выбрана
         break;
     }
 
     while (true) {
-        // Выбор диаметра трубы
         while (true) {
             std::vector<int> acceptableDiameters = {500, 700, 1000, 1400};
 
@@ -90,15 +88,12 @@ void Connection::addConnection() {
                 continue;
             }
 
-            // Диаметр успешно выбран
             break;
         }
 
         while (true) {
-            // Поиск свободной трубы с указанным диаметром
             int pipeId = -1;
             for (const auto& [id, pipe] : Pipe::pipes) {
-                // Проверяем, что труба имеет нужный диаметр и не используется в соединении
                 bool pipeInUse = false;
                 for (const auto& [connId, conn] : connections) {
                     if (conn.getPipeId() == id) {
@@ -113,7 +108,6 @@ void Connection::addConnection() {
             }
 
             if (pipeId == -1) {
-                // Если не нашли подходящую трубу, предлагаем варианты
                 std::cout << "Нет свободных труб с диаметром " << desiredDiameter << " мм.\n";
                 std::cout << "Выберите действие:\n";
                 std::cout << "1 - Создать новую трубу\n";
@@ -121,36 +115,29 @@ void Connection::addConnection() {
                 std::cout << "0 - Отмена\n";
                 int choice = inputInRange<int>("", 0, 2);
                 if (choice == 1) {
-                    // Создание новой трубы
                     std::cout << "Создание новой трубы.\n";
                     Pipe::addPipe();
-                    // После создания новой трубы, проверяем наличие трубы с нужным диаметром
-                    continue; // Повторяем поиск трубы
+                    continue;
                 } else if (choice == 2) {
-                    // Возвращаемся к выбору диаметра
-                    break; // Выходим из внутреннего цикла, возвращаемся к выбору диаметра
+                    break;
                 } else {
-                    // Отмена операции
                     std::cout << "Добавление соединения отменено.\n";
                     logger.log("Добавление соединения отменено пользователем при отсутствии подходящей трубы.");
                     return;
                 }
             } else {
-                // Труба найдена, переходим к подтверждению
-                // Подтверждение создания соединения
+
                 std::cout << "Вы собираетесь создать соединение между станцией " << stationId1 << " и станцией " << stationId2
                           << " с использованием трубы " << pipeId << " (диаметр: " << desiredDiameter << " мм).\n";
                 std::cout << "Подтвердите действие (1 - Да, 0 - Отмена): ";
                 int confirm = inputInRange<int>("", 0, 1);
                 if (confirm == 1) {
-                    // Создание соединения
                     Connection conn(nextId++, pipeId, stationId1, stationId2);
                     connections[conn.getId()] = conn;
 
                     std::cout << "Соединение успешно добавлено с ID: " << conn.getId() << std::endl;
                     logger.log("Добавлено новое соединение с ID: " + std::to_string(conn.getId()));
 
-                    // Выход из функции после успешного добавления
                     return;
                 } else {
                     std::cout << "Добавление соединения отменено пользователем.\n";
@@ -174,21 +161,35 @@ void Connection::displayAllConnections() {
 }
 
 void Connection::deleteConnectionsWithPipe(int pipeId) {
-    logger.log("Удаление соединений с трубой ID: " + std::to_string(pipeId));
+    logger.log("Удаление соединений, связанных с трубой ID: " + std::to_string(pipeId));
+
     std::vector<int> connectionsToDelete;
     for (const auto& [id, conn] : connections) {
         if (conn.getPipeId() == pipeId) {
             connectionsToDelete.push_back(id);
         }
     }
+
     for (int id : connectionsToDelete) {
         connections.erase(id);
         logger.log("Удалено соединение с ID: " + std::to_string(id));
     }
+
+    for (auto& [key, neighbors] : adjListOut) {
+        neighbors.erase(std::remove(neighbors.begin(), neighbors.end(), pipeId), neighbors.end());
+    }
+
+    for (auto& [key, neighbors] : adjListIn) {
+        neighbors.erase(std::remove(neighbors.begin(), neighbors.end(), pipeId), neighbors.end());
+    }
+
+    logger.log("Удаление трубы с ID: " + std::to_string(pipeId) + " завершено.");
+    std::cout << "Труба и все связанные соединения успешно удалены.\n";
 }
 
 void Connection::deleteConnectionsWithStation(int stationId) {
     logger.log("Удаление соединений со станцией ID: " + std::to_string(stationId));
+
     std::vector<int> connectionsToDelete;
     for (const auto& [id, conn] : connections) {
         if (conn.getStationId1() == stationId || conn.getStationId2() == stationId) {
@@ -199,6 +200,18 @@ void Connection::deleteConnectionsWithStation(int stationId) {
         connections.erase(id);
         logger.log("Удалено соединение с ID: " + std::to_string(id));
     }
+
+    for (auto& [key, neighbors] : adjListOut) {
+        neighbors.erase(std::remove(neighbors.begin(), neighbors.end(), stationId), neighbors.end());
+    }
+    adjListOut.erase(stationId);
+
+    for (auto& [key, neighbors] : adjListIn) {
+        neighbors.erase(std::remove(neighbors.begin(), neighbors.end(), stationId), neighbors.end());
+    }
+    adjListIn.erase(stationId);
+
+    std::cout << "Станция и все связанные соединения успешно удалены.\n";
 }
 
 void Connection::writeToConsole() const {
@@ -253,55 +266,69 @@ void Connection::deleteConnection() {
 }
 
 void Connection::topologicalSort() {
-    // Построение списка смежности из соединений
-    std::unordered_map<int, std::vector<int>> adjList; // Ключ: ID станции, значение: список смежных станций
+    std::unordered_map<int, std::vector<int>> adjListOut;
+    std::unordered_map<int, std::vector<int>> adjListIn;
 
-    // Инициализация списка смежности для всех станций
-    for (const auto& [id, station] : CompressorStation::stations) {
-        adjList[id] = std::vector<int>();
-    }
-
-    // Заполнение списка смежности на основе соединений
     for (const auto& [connId, conn] : connections) {
-        int fromStation = conn.getStationId1(); // Исходная станция
-        int toStation = conn.getStationId2();   // Конечная станция
-        adjList[fromStation].push_back(toStation);
+        adjListOut[conn.getStationId1()].push_back(conn.getStationId2());
+        adjListIn[conn.getStationId2()].push_back(conn.getStationId1());
     }
 
-    // Переменные для отслеживания посещенных станций и стека рекурсии
+    std::cout << "Массив исходящих соединений:\n";
+    for (const auto& [stationId, neighbors] : adjListOut) {
+        std::cout << "Станция " << stationId << ": ";
+        if (neighbors.empty()) {
+            std::cout << "Нет соединений";
+        } else {
+            for (int neighbor : neighbors) {
+                std::cout << neighbor << " ";
+            }
+        }
+        std::cout << "\n";
+    }
+
+    std::cout << "Массив входящих соединений:\n";
+    for (const auto& [stationId, neighbors] : adjListIn) {
+        std::cout << "Станция " << stationId << ": ";
+        if (neighbors.empty()) {
+            std::cout << "Нет соединений";
+        } else {
+            for (int neighbor : neighbors) {
+                std::cout << neighbor << " ";
+            }
+        }
+        std::cout << "\n";
+    }
+
+    if (adjListOut.empty()) {
+        std::cout << "Нет соединений. Топологическая сортировка невозможна.\n";
+        logger.log("Попытка выполнить топологическую сортировку в пустом графе.");
+        return;
+    }
+
     std::unordered_map<int, bool> visited;
-    std::unordered_map<int, bool> onStack;
     std::stack<int> sortedStations;
     bool hasCycle = false;
 
-    // Определение рекурсивной функции DFS
     std::function<void(int)> dfs = [&](int stationId) {
-        if (hasCycle) return;
+        if (visited[stationId]) return;
         visited[stationId] = true;
-        onStack[stationId] = true;
 
-        for (int neighbor : adjList[stationId]) {
+        for (int neighbor : adjListOut[stationId]) {
             if (!visited[neighbor]) {
                 dfs(neighbor);
-            } else if (onStack[neighbor]) {
-                hasCycle = true;
-                return;
             }
         }
 
-        onStack[stationId] = false;
         sortedStations.push(stationId);
     };
 
-    // Выполнение DFS из каждой непосещенной станции
-    for (const auto& [id, station] : CompressorStation::stations) {
-        if (!visited[id]) {
-            dfs(id);
-            if (hasCycle) break;
+    for (const auto& [stationId, _] : adjListOut) {
+        if (!visited[stationId]) {
+            dfs(stationId);
         }
     }
 
-    // Вывод результатов
     if (hasCycle) {
         std::cout << "Граф содержит цикл. Топологическая сортировка невозможна.\n";
         logger.log("Топологическая сортировка не выполнена из-за наличия цикла в графе.");
@@ -315,6 +342,7 @@ void Connection::topologicalSort() {
         }
     }
 }
+
 
 void Connection::connectionSubMenu() {
     std::vector<std::string> getMenuOptionsConnection = {

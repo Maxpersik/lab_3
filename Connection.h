@@ -30,6 +30,9 @@ public:
     int getPipeId() const { return pipeId; }
     int getStationId1() const { return stationId1; }
     int getStationId2() const { return stationId2; }
+    
+    static std::unordered_map<int, std::vector<int>> adjListOut; // Исходящие соединения
+    static std::unordered_map<int, std::vector<int>> adjListIn;  // Входящие соединения
 
     void writeToConsole() const;
     static void connectionSubMenu();

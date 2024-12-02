@@ -7,7 +7,7 @@
 
 std::string DataManager::getFullPathFromCurrentDirectory() {
     try {
-        std::string currentPath ="/Users/maximgvozdev/Gubkin_main/Gubkin_3_term/Algoritmic languages/lab_3/lab_3";
+        std::string currentPath = std::filesystem::current_path();;
         
         std::string filename;
         std::cout << "Введите название файла: ";
