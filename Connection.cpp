@@ -4,6 +4,8 @@
 #include "Utils.h"
 #include "Logger.h"
 #include "vector"
+#include <stack>
+#include <unordered_set>
 
 int Connection::nextId = 1;
 std::unordered_map<int, Connection> Connection::connections;
@@ -116,7 +118,7 @@ void Connection::addConnection() {
                 int choice = inputInRange<int>("", 0, 2);
                 if (choice == 1) {
                     std::cout << "Создание новой трубы.\n";
-                    Pipe::addPipe();
+                    Pipe::addPipeWithDiameter(desiredDiameter);
                     continue;
                 } else if (choice == 2) {
                     break;
@@ -134,6 +136,9 @@ void Connection::addConnection() {
                 if (confirm == 1) {
                     Connection conn(nextId++, pipeId, stationId1, stationId2);
                     connections[conn.getId()] = conn;
+                    
+                    adjListOut[stationId1].push_back(stationId2);
+                    adjListIn[stationId2].push_back(stationId1);
 
                     std::cout << "Соединение успешно добавлено с ID: " << conn.getId() << std::endl;
                     logger.log("Добавлено новое соединение с ID: " + std::to_string(conn.getId()));
@@ -265,82 +270,162 @@ void Connection::deleteConnection() {
     }
 }
 
-void Connection::topologicalSort() {
-    std::unordered_map<int, std::vector<int>> adjListOut;
-    std::unordered_map<int, std::vector<int>> adjListIn;
-
-    for (const auto& [connId, conn] : connections) {
-        adjListOut[conn.getStationId1()].push_back(conn.getStationId2());
-        adjListIn[conn.getStationId2()].push_back(conn.getStationId1());
-    }
-
-    std::cout << "Массив исходящих соединений:\n";
-    for (const auto& [stationId, neighbors] : adjListOut) {
-        std::cout << "Станция " << stationId << ": ";
-        if (neighbors.empty()) {
-            std::cout << "Нет соединений";
-        } else {
-            for (int neighbor : neighbors) {
-                std::cout << neighbor << " ";
+void Connection::dfsReachableFromStart(int station, const std::unordered_map<int, std::vector<int>>& adjListOut, std::unordered_set<int>& visited) {
+    visited.insert(station);
+    if (adjListOut.find(station) != adjListOut.end()) {
+        for (int next : adjListOut.at(station)) {
+            if (visited.find(next) == visited.end()) {
+                dfsReachableFromStart(next, adjListOut, visited);
             }
         }
-        std::cout << "\n";
     }
+}
 
-    std::cout << "Массив входящих соединений:\n";
-    for (const auto& [stationId, neighbors] : adjListIn) {
-        std::cout << "Станция " << stationId << ": ";
-        if (neighbors.empty()) {
-            std::cout << "Нет соединений";
-        } else {
-            for (int neighbor : neighbors) {
-                std::cout << neighbor << " ";
+void dfsReachableToEnd(int station, const std::unordered_map<int, std::vector<int>>& adjListIn, std::unordered_set<int>& visited) {
+    visited.insert(station);
+    if (adjListIn.find(station) != adjListIn.end()) {
+        for (int prev : adjListIn.at(station)) {
+            if (visited.find(prev) == visited.end()) {
+                dfsReachableToEnd(prev, adjListIn, visited);
             }
         }
-        std::cout << "\n";
+    }
+}
+
+bool topologicalSortUtil(int station,
+                                const std::unordered_map<int, std::vector<int>>& adjList,
+                                std::unordered_set<int>& visited,
+                                std::unordered_set<int>& recursionStack,
+                                std::vector<int>& result) {
+    visited.insert(station);
+    recursionStack.insert(station);
+
+    if (adjList.find(station) != adjList.end()) {
+        for (int next : adjList.at(station)) {
+            if (visited.find(next) == visited.end()) {
+                if (!topologicalSortUtil(next, adjList, visited, recursionStack, result)) {
+                    return false; // если обнаружен цикл
+                }
+            } else if (recursionStack.find(next) != recursionStack.end()) {
+                return false;
+            }
+        }
     }
 
-    if (adjListOut.empty()) {
-        std::cout << "Нет соединений. Топологическая сортировка невозможна.\n";
-        logger.log("Попытка выполнить топологическую сортировку в пустом графе.");
+    recursionStack.erase(station);
+    result.push_back(station);
+    return true;
+}
+
+void Connection::topologicalSortMenu() {
+    logger.log("Вызвано меню топологической сортировки станций.");
+
+    if (CompressorStation::stations.empty()) {
+        std::cout << "Нет станций для топологической сортировки.\n";
+        logger.log("Ошибка: Нет станций.");
         return;
     }
 
-    std::unordered_map<int, bool> visited;
-    std::stack<int> sortedStations;
-    bool hasCycle = false;
+    int startStation, endStation;
+    while (true) {
+        std::cout << "Введите ID начальной станции (или 0 для отмены): ";
+        std::string input;
+        std::getline(std::cin, input);
+        startStation = numberOrDefault(input);
+        if (startStation == 0) {
+            std::cout << "Отмена топологической сортировки.\n";
+            logger.log("Отмена топологической сортировки пользователем.");
+            return;
+        }
+        if (CompressorStation::stations.find(startStation) == CompressorStation::stations.end()) {
+            std::cout << "Станция не найдена. Повторите ввод.\n";
+            continue;
+        }
+        break;
+    }
 
-    std::function<void(int)> dfs = [&](int stationId) {
-        if (visited[stationId]) return;
-        visited[stationId] = true;
+    while (true) {
+        std::cout << "Введите ID конечной станции (или 0 для отмены): ";
+        std::string input;
+        std::getline(std::cin, input);
+        endStation = numberOrDefault(input);
+        if (endStation == 0) {
+            std::cout << "Отмена топологической сортировки.\n";
+            logger.log("Отмена топологической сортировки пользователем.");
+            return;
+        }
+        if (CompressorStation::stations.find(endStation) == CompressorStation::stations.end()) {
+            std::cout << "Станция не найдена. Повторите ввод.\n";
+            continue;
+        }
+        break;
+    }
 
-        for (int neighbor : adjListOut[stationId]) {
-            if (!visited[neighbor]) {
-                dfs(neighbor);
+    topologicalSort(startStation, endStation);
+}
+
+void Connection::topologicalSort(int startStation, int endStation) {
+    logger.log("Запуск топологической сортировки со станцией начала: " + std::to_string(startStation) +
+               " и станцией конца: " + std::to_string(endStation));
+
+    std::unordered_set<int> reachableFromStart;
+    dfsReachableFromStart(startStation, adjListOut, reachableFromStart);
+
+    std::unordered_set<int> reachableToEnd;
+    dfsReachableToEnd(endStation, adjListIn, reachableToEnd);
+
+    std::unordered_set<int> subgraphStations;
+    for (int st : reachableFromStart) {
+        if (reachableToEnd.find(st) != reachableToEnd.end()) {
+            subgraphStations.insert(st);
+        }
+    }
+
+    if (subgraphStations.empty()) {
+        std::cout << "Не найдено путей от станции " << startStation << " к станции " << endStation << ".\n";
+        logger.log("Топологическая сортировка: Пути не найдены.");
+        return;
+    }
+
+    std::unordered_map<int, std::vector<int>> subgraph;
+    for (int st : subgraphStations) {
+        if (adjListOut.find(st) != adjListOut.end()) {
+            std::vector<int> filtered;
+            for (int nxt : adjListOut.at(st)) {
+                if (subgraphStations.find(nxt) != subgraphStations.end()) {
+                    filtered.push_back(nxt);
+                }
+            }
+            if (!filtered.empty()) {
+                subgraph[st] = filtered;
             }
         }
+    }
 
-        sortedStations.push(stationId);
-    };
+    std::unordered_set<int> visited;
+    std::unordered_set<int> recursionStack;
+    std::vector<int> result;
 
-    for (const auto& [stationId, _] : adjListOut) {
-        if (!visited[stationId]) {
-            dfs(stationId);
+    for (int st : subgraphStations) {
+        if (visited.find(st) == visited.end()) {
+            if (!topologicalSortUtil(st, subgraph, visited, recursionStack, result)) {
+                // Если обнаружен цикл
+                std::cout << "Топологическая сортировка невозможна, обнаружен цикл в выбранном подграфе.\n";
+                logger.log("Топологическая сортировка: обнаружен цикл.");
+                return;
+            }
         }
     }
 
-    if (hasCycle) {
-        std::cout << "Граф содержит цикл. Топологическая сортировка невозможна.\n";
-        logger.log("Топологическая сортировка не выполнена из-за наличия цикла в графе.");
-    } else {
-        std::cout << "Топологическая сортировка станций:\n";
-        logger.log("Выполнена топологическая сортировка станций.");
-        while (!sortedStations.empty()) {
-            int stationId = sortedStations.top();
-            sortedStations.pop();
-            std::cout << "Станция ID: " << stationId << ", Название: " << CompressorStation::stations[stationId].getName() << "\n";
-        }
+    std::reverse(result.begin(), result.end());
+
+    std::cout << "Топологически отсортированный порядок станций (подграф от " << startStation << " до " << endStation << "):\n";
+    for (int st : result) {
+        std::cout << st << " ";
     }
+    std::cout << "\n";
+
+    logger.log("Топологическая сортировка успешно выполнена.");
 }
 
 
@@ -372,8 +457,8 @@ void Connection::connectionSubMenu() {
                 deleteConnection();
                 break;
             case 4:
-               logger.log("Запуск топологической сортировки станций.");
-               topologicalSort();
+                logger.log("Запуск топологической сортировки станций.");
+                topologicalSortMenu();
                break;
             case 0:
                 logger.log("Выход из подменю соединений.");

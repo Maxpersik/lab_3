@@ -78,6 +78,30 @@ void Pipe::addPipe() {
 
 }
 
+void Pipe::addPipeWithDiameter(int givenDiameter) {
+    logger.log("Создание новой трубы с заданным диаметром.");
+
+    if (givenDiameter < 10 || givenDiameter > 10000) {
+        std::cerr << "Ошибка: Диаметр трубы должен быть в диапазоне от 10 до 10000 мм.\n";
+        logger.log("Ошибка: Передан некорректный диаметр.");
+        return;
+    }
+
+    Pipe pipe;
+    pipe.setId(nextId++);
+    pipe.diameter = givenDiameter;
+
+    std::cout << "Введите название трубы: ";
+    std::getline(std::cin, pipe.name);
+    pipe.length = inputInRange<int>("Введите длину трубы (в км): ", 0.1, 10000);
+    pipe.repairStatus = false;
+
+    pipes[pipe.getId()] = pipe;
+
+    std::cout << "Труба успешно создана.\n";
+    logger.log("Добавлена новая труба с ID: " + std::to_string(pipe.getId()) + " и диаметром: " + std::to_string(givenDiameter) + " мм.");
+}
+
 void Pipe::displayAll() {
     logger.log("Вывод всех труб");
     std::cout << "\n--- Показать все трубы ---\n";

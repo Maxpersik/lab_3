@@ -50,6 +50,7 @@ public:
     static int pipeSubMenu();
     static void selectPipesForBatchEditOrDelete();
     static void batchEditOrDeleteMenu(const std::vector<Pipe>& pipesToEdit);
+    static void addPipeWithDiameter(int givenDiameter);
     
 };
 

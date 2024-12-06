@@ -22,4 +22,4 @@ public:
                              const std::string& filename);
 };
 
-#endif // DATAMANAGER_H
+#endif 

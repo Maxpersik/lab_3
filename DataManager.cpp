@@ -159,4 +159,17 @@ void DataManager::loadFromFile(std::unordered_map<int, Pipe>& pipes,
 
     inFile.close();
     std::cout << "Данные успешно загружены из файла: " << filename << "\n";
+    
+    
+    // Очистка старых списков смежности
+    Connection::adjListOut.clear();
+    Connection::adjListIn.clear();
+
+    // Перезаполнение списков на основе загруженных соединений
+    for (const auto& [id, connection] : connections) {
+        int s1 = connection.getStationId1();
+        int s2 = connection.getStationId2();
+        Connection::adjListOut[s1].push_back(s2);
+        Connection::adjListIn[s2].push_back(s1);
+    }
 }
