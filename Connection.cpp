@@ -17,6 +17,7 @@ Connection::Connection(int id, int pipeId, int stationId1, int stationId2)
 
 std::unordered_map<int, std::vector<int>> Connection::adjListOut;
 std::unordered_map<int, std::vector<int>> Connection::adjListIn;
+std::unordered_map<int, int> Connection::pipeCapacity;  // Производительность трубы (ID трубы -> значение)
 
 void Connection::addConnection() {
     logger.log("Добавление нового соединения.");
@@ -223,12 +224,12 @@ void Connection::writeToConsole() const {
     std::cout << "Соединение ID: " << id << "\n";
     std::cout << "Труба ID: " << pipeId << "\n";
     std::cout << "Станция 1 ID: " << stationId1 << "\n";
-    std::cout << "Станция 2 ID: " << stationId2 << "\n\n";
+    std::cout << "Станция 2 ID: " << stationId2 << "\n";
     auto it = Pipe::pipes.find(pipeId);
        if (it != Pipe::pipes.end()) {
            const Pipe& pipe = it->second;
            std::cout << "Диаметр трубы: " << pipe.getDiameter() << " мм\n";
-           std::cout << "Длина трубы: " << pipe.getLength() << " м\n";
+           std::cout << "Длина трубы: " << pipe.getLength() << " м\n\n";
        } else {
            std::cout << "Труба с ID " << pipeId << " не найдена.\n";
        }
@@ -409,7 +410,6 @@ void Connection::topologicalSort(int startStation, int endStation) {
     for (int st : subgraphStations) {
         if (visited.find(st) == visited.end()) {
             if (!topologicalSortUtil(st, subgraph, visited, recursionStack, result)) {
-                // Если обнаружен цикл
                 std::cout << "Топологическая сортировка невозможна, обнаружен цикл в выбранном подграфе.\n";
                 logger.log("Топологическая сортировка: обнаружен цикл.");
                 return;
@@ -428,15 +428,191 @@ void Connection::topologicalSort(int startStation, int endStation) {
     logger.log("Топологическая сортировка успешно выполнена.");
 }
 
+double calculatePipePerformance(const Pipe& pipe) {
+    if (pipe.getStatus()) {
+        return 0.0;
+    }
+
+    double diameter = pipe.getDiameter();
+    double length = pipe.getLength();
+
+    if (length == 0) {
+        throw std::runtime_error("Длина трубы не может быть равна 0.");
+    }
+
+    return std::sqrt(std::pow(diameter, 5) / length) * 1000;
+}
+
+int Connection::fordFulkerson(int source, int sink) {
+    std::unordered_map<int, std::unordered_map<int, int>> residualCapacity;
+
+    for (const auto& [connectionId, conn] : connections) {
+        int pipeId = conn.getPipeId();
+        int startStation = conn.getStationId1();
+        int endStation = conn.getStationId2();
+
+        auto pipeIt = Pipe::pipes.find(pipeId);
+        if (pipeIt != Pipe::pipes.end() && !pipeIt->second.getStatus()) {
+                    double diameterInMeters = pipeIt->second.getDiameter() / 1000.0;
+
+                    double capacity = sqrt(pow(diameterInMeters, 5)) / pipeIt->second.getLength();
+                    capacity *= 10;
+                    residualCapacity[startStation][endStation] = static_cast<int>(capacity);
+                }
+    }
+
+    long long maxFlow = 0;
+    std::unordered_map<int, int> parent;
+
+    auto bfs = [&](int s, int t) -> bool {
+        std::unordered_set<int> visited;
+        std::queue<int> queue;
+        queue.push(s);
+        visited.insert(s);
+
+        while (!queue.empty()) {
+            int u = queue.front();
+            queue.pop();
+
+            for (int v : adjListOut[u]) {
+                if (residualCapacity[u][v] > 0 && visited.find(v) == visited.end()) {
+                    queue.push(v);
+                    visited.insert(v);
+                    parent[v] = u;
+
+                    if (v == t) return true;
+                }
+            }
+        }
+        return false;
+    };
+
+    while (bfs(source, sink)) {
+        int pathFlow = INT_MAX;
+
+        for (int v = sink; v != source; v = parent[v]) {
+            int u = parent[v];
+            pathFlow = std::min(pathFlow, residualCapacity[u][v]);
+        }
+
+        for (int v = sink; v != source; v = parent[v]) {
+            int u = parent[v];
+            residualCapacity[u][v] -= pathFlow;
+            residualCapacity[v][u] += pathFlow;
+        }
+
+        maxFlow += pathFlow;
+    }
+
+    return static_cast<int>(maxFlow);
+}
+
+int Connection::findPipeByStations(int station1, int station2) {
+    for (const auto& [connectionId, conn] : connections) {
+        if ((conn.getStationId1() == station1 && conn.getStationId2() == station2) ||
+            (conn.getStationId1() == station2 && conn.getStationId2() == station1)) {
+            return conn.getPipeId();
+        }
+    }
+    throw std::runtime_error("Труба между указанными станциями не найдена");
+}
+
+std::vector<int> Connection::dijkstra(int start, int end) {
+    std::unordered_map<int, double> dist;
+    std::unordered_map<int, int> prev;
+    std::priority_queue<std::pair<double, int>, std::vector<std::pair<double, int>>, std::greater<>> pq;
+
+    for (const auto& station : CompressorStation::stations) {
+        dist[station.first] = std::numeric_limits<double>::infinity();
+    }
+    dist[start] = 0;
+    pq.push({0, start});
+
+    while (!pq.empty()) {
+        int u = pq.top().second;
+        pq.pop();
+
+        if (u == end) break;
+
+        for (int v : adjListOut[u]) {
+            int pipeId = findPipeByStations(u, v);
+            const auto& pipe = Pipe::pipes.at(pipeId);
+
+            double weight = pipe.getStatus() ? std::numeric_limits<double>::infinity() : pipe.getLength();
+
+            if (dist[u] + weight < dist[v]) {
+                dist[v] = dist[u] + weight;
+                prev[v] = u;
+                pq.push({dist[v], v});
+            }
+        }
+    }
+
+    std::vector<int> path;
+    if (dist[end] == std::numeric_limits<double>::infinity()) {
+        std::cout << "Путь от станции " << start << " к станции " << end << " недоступен.\n";
+        return path;
+    }
+
+    for (int at = end; at != start; at = prev[at]) {
+        path.push_back(at);
+    }
+    path.push_back(start);
+    std::reverse(path.begin(), path.end());
+
+    std::cout << "Общая длина пути: " << dist[end] << " км\n";
+
+    return path;
+}
+
+void Connection::handleMaxFlow() {
+    int source, sink;
+    std::cout << "Введите начальную станцию: ";
+    std::cin >> source;
+    std::cout << "Введите конечную станцию: ";
+    std::cin >> sink;
+
+    try {
+        int maxFlow = fordFulkerson(source, sink);
+        std::cout << "Максимальный поток: " << maxFlow << "\n";
+    } catch (const std::exception& e) {
+        std::cout << "Ошибка при расчете максимального потока: " << e.what() << "\n";
+    }
+}
+
+void Connection::handleShortestPath() {
+    int start, end;
+    std::cout << "Введите начальную станцию: ";
+    std::cin >> start;
+    std::cout << "Введите конечную станцию: ";
+    std::cin >> end;
+
+    try {
+        auto path = dijkstra(start, end);
+        if (path.empty()) {
+            std::cout << "Путь не найден.\n";
+        } else {
+            std::cout << "Кратчайший путь: ";
+            for (int station : path) std::cout << station << " ";
+            std::cout << "\n";
+        }
+    } catch (const std::exception& e) {
+        std::cout << "Ошибка при расчете кратчайшего пути: " << e.what() << "\n";
+    }
+}
+
+
 
 void Connection::connectionSubMenu() {
     std::vector<std::string> getMenuOptionsConnection = {
-        "Выход",
-        "Показать все соединения",
-        "Добавить соединение",
-        "Удаление соединение ",
-        "Топологическая сортировка станций"
-    };
+           "Выход",
+           "Показать все соединения",
+           "Добавить соединение",
+           "Удалить соединение",
+           "Топологическая сортировка станций",
+           "Рассчитать максимальный поток",
+           "Рассчитать кратчайший путь"
+       };
 
     std::string command;
     long value;
@@ -460,6 +636,12 @@ void Connection::connectionSubMenu() {
                 logger.log("Запуск топологической сортировки станций.");
                 topologicalSortMenu();
                break;
+            case 5:
+                handleMaxFlow();
+                break;
+            case 6:
+                handleShortestPath();
+                break;
             case 0:
                 logger.log("Выход из подменю соединений.");
                 std::cout << "Выход из меню работы с соединениями.\n";

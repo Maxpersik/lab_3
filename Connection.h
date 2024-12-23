@@ -36,15 +36,24 @@ public:
     int getStationId1() const { return stationId1; }
     int getStationId2() const { return stationId2; }
     
-    static std::unordered_map<int, std::vector<int>> adjListOut; // Исходящие соединения
-    static std::unordered_map<int, std::vector<int>> adjListIn;  // Входящие соединения
+    static std::unordered_map<int, std::vector<int>> adjListOut;
+    static std::unordered_map<int, std::vector<int>> adjListIn; 
+    static std::unordered_map<int, int> pipeCapacity;
+    
+    static int findPipeByStations(int station1, int station2);
+    static void handleMaxFlow();
+    static void handleShortestPath();
+
 
     void writeToConsole() const;
     static void topologicalSortMenu();
+    static int fordFulkerson(int source, int sink);
+    static std::vector<int> dijkstra(int start, int end);
+
     static void connectionSubMenu();
 };
 
-void dfsReachableToEnd(int station, const std::unordered_map<int, std::vector<int>>& adjListIn, std::unordered_set<int>& visited);
+static void dfsReachableToEnd(int station, const std::unordered_map<int, std::vector<int>>& adjListIn, std::unordered_set<int>& visited);
 bool topologicalSortUtil(int station,
                                 const std::unordered_map<int, std::vector<int>>& adjList,
                                 std::unordered_set<int>& visited,

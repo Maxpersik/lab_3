@@ -5,6 +5,9 @@
 #include "Utils.h"
 #include "Logger.h"
 #include "Connection.h"
+#include <locale>
+
+// /Users/maximgvozdev/Library/Developer/Xcode/DerivedData/lab_3-dzogonyrrhgitwceydxxdgtdjgsg/Build/Products/Debug5
 
 
 std::vector<std::string> getMenuOptions = {
@@ -18,6 +21,8 @@ std::vector<std::string> getMenuOptions = {
 };
 
 int main() {
+    std::locale::global(std::locale::classic());
+    std::wcout.imbue(std::locale());
     std::string command;
     long value;
     std::string filename;
