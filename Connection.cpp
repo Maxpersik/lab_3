@@ -229,7 +229,7 @@ void Connection::writeToConsole() const {
        if (it != Pipe::pipes.end()) {
            const Pipe& pipe = it->second;
            std::cout << "Диаметр трубы: " << pipe.getDiameter() << " мм\n";
-           std::cout << "Длина трубы: " << pipe.getLength() << " м\n\n";
+           std::cout << "Длина трубы: " << pipe.getLength() << " км\n\n";
        } else {
            std::cout << "Труба с ID " << pipeId << " не найдена.\n";
        }
@@ -443,8 +443,8 @@ double calculatePipePerformance(const Pipe& pipe) {
     return std::sqrt(std::pow(diameter, 5) / length) * 1000;
 }
 
-int Connection::fordFulkerson(int source, int sink) {
-    std::unordered_map<int, std::unordered_map<int, int>> residualCapacity;
+double Connection::fordFulkerson(int source, int sink) {
+    std::unordered_map<int, std::unordered_map<int, double>> residualCapacity;
 
     for (const auto& [connectionId, conn] : connections) {
         int pipeId = conn.getPipeId();
@@ -453,15 +453,20 @@ int Connection::fordFulkerson(int source, int sink) {
 
         auto pipeIt = Pipe::pipes.find(pipeId);
         if (pipeIt != Pipe::pipes.end() && !pipeIt->second.getStatus()) {
-                    double diameterInMeters = pipeIt->second.getDiameter() / 1000.0;
+            double diameterInMeters = pipeIt->second.getDiameter() / 1000.0;
+            double lengthInMeters = pipeIt->second.getLength() * 1000.0; // Преобразуем длину в метры
 
-                    double capacity = sqrt(pow(diameterInMeters, 5)) / pipeIt->second.getLength();
-                    capacity *= 10;
-                    residualCapacity[startStation][endStation] = static_cast<int>(capacity);
-                }
+            double capacity = (sqrt(pow(diameterInMeters, 5)) / lengthInMeters) * 10.0;
+
+            if (capacity > 0) {
+                residualCapacity[startStation][endStation] = capacity;
+                std::cout << "Added capacity from " << startStation
+                          << " to " << endStation << ": " << capacity << std::endl;
+            }
+        }
     }
 
-    long long maxFlow = 0;
+    double maxFlow = 0.0;
     std::unordered_map<int, int> parent;
 
     auto bfs = [&](int s, int t) -> bool {
@@ -469,13 +474,14 @@ int Connection::fordFulkerson(int source, int sink) {
         std::queue<int> queue;
         queue.push(s);
         visited.insert(s);
+        parent.clear();
 
         while (!queue.empty()) {
             int u = queue.front();
             queue.pop();
 
-            for (int v : adjListOut[u]) {
-                if (residualCapacity[u][v] > 0 && visited.find(v) == visited.end()) {
+            for (const auto& [v, cap] : residualCapacity[u]) {
+                if (cap > 0 && visited.find(v) == visited.end()) {
                     queue.push(v);
                     visited.insert(v);
                     parent[v] = u;
@@ -488,7 +494,7 @@ int Connection::fordFulkerson(int source, int sink) {
     };
 
     while (bfs(source, sink)) {
-        int pathFlow = INT_MAX;
+        double pathFlow = std::numeric_limits<double>::max();
 
         for (int v = sink; v != source; v = parent[v]) {
             int u = parent[v];
@@ -504,7 +510,8 @@ int Connection::fordFulkerson(int source, int sink) {
         maxFlow += pathFlow;
     }
 
-    return static_cast<int>(maxFlow);
+    std::cout << "Max Flow: " << std::fixed << std::setprecision(6) << maxFlow << std::endl;
+    return maxFlow;
 }
 
 int Connection::findPipeByStations(int station1, int station2) {
@@ -566,14 +573,15 @@ std::vector<int> Connection::dijkstra(int start, int end) {
 }
 
 void Connection::handleMaxFlow() {
-    int source, sink;
-    std::cout << "Введите начальную станцию: ";
-    std::cin >> source;
-    std::cout << "Введите конечную станцию: ";
-    std::cin >> sink;
+    int minStation = 1;
+    int maxStation = CompressorStation::stations.size();
+
+    int source = inputInRange<int>("Введите начальную станцию: ", minStation, maxStation);
+    int sink = inputInRange<int>("Введите конечную станцию: ", minStation, maxStation);
+
 
     try {
-        int maxFlow = fordFulkerson(source, sink);
+        double maxFlow = fordFulkerson(source, sink);
         std::cout << "Максимальный поток: " << maxFlow << "\n";
     } catch (const std::exception& e) {
         std::cout << "Ошибка при расчете максимального потока: " << e.what() << "\n";
@@ -581,11 +589,13 @@ void Connection::handleMaxFlow() {
 }
 
 void Connection::handleShortestPath() {
-    int start, end;
-    std::cout << "Введите начальную станцию: ";
-    std::cin >> start;
-    std::cout << "Введите конечную станцию: ";
-    std::cin >> end;
+    //int start, end;
+    int minStation = 1;
+    int maxStation = CompressorStation::stations.size();
+
+    int start = inputInRange<int>("Введите начальную станцию: ", minStation, maxStation);
+    int end = inputInRange<int>("Введите конечную станцию: ", minStation, maxStation);
+
 
     try {
         auto path = dijkstra(start, end);

@@ -47,7 +47,7 @@ public:
 
     void writeToConsole() const;
     static void topologicalSortMenu();
-    static int fordFulkerson(int source, int sink);
+    static double fordFulkerson(int source, int sink);
     static std::vector<int> dijkstra(int start, int end);
 
     static void connectionSubMenu();
